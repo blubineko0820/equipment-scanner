@@ -43,7 +43,7 @@
             resultDiv.style.color = "#0056b3";
             resultDiv.innerText = `讀取到編號：${decodedText}\n連線中...`;
             
-            fetch(API_URL + "equipment?id=" + decodedText)
+            fetch(API_URL + "?id=" + decodedText)
                 .then(response => response.text())
                 .then(text => {
                     resultDiv.style.color = text.includes("成功") ? "green" : "red";
