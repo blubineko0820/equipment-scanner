@@ -11,6 +11,11 @@
         .back-btn { padding: 10px 16px; background-color: #0056b3; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
         .refresh-btn { padding: 10px 14px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
         h2 { margin: 0 0 12px 0; color: #333; font-size: 20px; }
+        .summary-box { display: none; background: white; padding: 14px 16px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 14px; font-size: 16px; font-weight: bold; text-align: center; }
+        .stat-borrowed { color: #198754; }
+        .stat-available { color: #dc3545; }
+        .stat-total { color: #0056b3; }
+        .stat-sep { color: #adb5bd; margin: 0 8px; }
         .filter-group { display: none; gap: 8px; margin-bottom: 15px; }
         .filter-btn { padding: 8px 14px; border: 1px solid #ccc; background: white; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .filter-btn.active { background-color: #343a40; color: white; border-color: #343a40; }
@@ -34,6 +39,15 @@
 
         <h2 id="page-title">設備清單載入中...</h2>
 
+        <!-- 老師專用的數量統計列（借出中：綠 / 可借用：紅 / 所有設備：藍） -->
+        <div id="teacher-summary" class="summary-box">
+            <span class="stat-borrowed">借出中：<span id="count-borrowed">0</span></span>
+            <span class="stat-sep">/</span>
+            <span class="stat-available">可借用：<span id="count-available">0</span></span>
+            <span class="stat-sep">/</span>
+            <span class="stat-total">所有設備：<span id="count-total">0</span></span>
+        </div>
+
         <!-- 老師專用的狀態篩選列 -->
         <div id="teacher-filters" class="filter-group">
             <button class="filter-btn active" onclick="filterItems('all', this)">全部設備</button>
@@ -46,6 +60,7 @@
 
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycby6LScaklLoa5lIhOucKWLZfY5S_6EPL7SH4wnwQ1HFssyZigvIvkcdBzaJ8UUoH2k-/exec";
+        const IDLE_LIMIT_MS = 60000; // 閒置上限 60 秒
 
         const userStr = localStorage.getItem("eq_user");
         if (!userStr) {
@@ -54,14 +69,57 @@
         const currentUser = JSON.parse(userStr);
         let allItems = [];
 
+        function logout(isTimeout) {
+            localStorage.removeItem("eq_user");
+            localStorage.removeItem("eq_last_active");
+            window.location.href = isTimeout ? "index.html?timeout=1" : "index.html";
+        }
+
+        // --- 閒置 60 秒自動登出機制 ---
+        function resetIdleTimer() {
+            localStorage.setItem("eq_last_active", String(Date.now()));
+        }
+
+        const initLastActive = parseInt(localStorage.getItem("eq_last_active") || "0", 10);
+        if (initLastActive && (Date.now() - initLastActive > IDLE_LIMIT_MS)) {
+            logout(true);
+        } else {
+            resetIdleTimer();
+        }
+
+        ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"].forEach(evt => {
+            document.addEventListener(evt, resetIdleTimer, { passive: true });
+        });
+
+        setInterval(() => {
+            const last = parseInt(localStorage.getItem("eq_last_active") || "0", 10);
+            if (Date.now() - last > IDLE_LIMIT_MS) {
+                logout(true);
+            }
+        }, 1000);
+
+        // --- 權限介面初始化 ---
         if (currentUser.role === "teacher") {
             document.getElementById("page-title").innerText = "所有設備狀態總覽（老師權限）";
+            document.getElementById("teacher-summary").style.display = "block";
             document.getElementById("teacher-filters").style.display = "flex";
         } else {
             document.getElementById("page-title").innerText = `${currentUser.name} 目前借用的設備`;
         }
 
+        function updateTeacherSummary(items) {
+            if (currentUser.role !== "teacher") return;
+            const borrowedCount = items.filter(item => item.status === "借出中").length;
+            const availableCount = items.filter(item => item.status === "可借用").length;
+            const totalCount = items.length;
+
+            document.getElementById("count-borrowed").innerText = borrowedCount;
+            document.getElementById("count-available").innerText = availableCount;
+            document.getElementById("count-total").innerText = totalCount;
+        }
+
         function loadList() {
+            resetIdleTimer();
             const container = document.getElementById("list-container");
             container.innerHTML = `<div class="empty-msg">資料讀取中，請稍候...</div>`;
 
@@ -70,8 +128,10 @@
             fetch(url)
                 .then(res => res.json())
                 .then(data => {
+                    resetIdleTimer();
                     if (data.status === "success") {
                         allItems = data.items;
+                        updateTeacherSummary(allItems);
                         renderItems(allItems);
                     } else {
                         container.innerHTML = `<div class="empty-msg" style="color:red;">讀取失敗：${data.message}</div>`;
@@ -83,6 +143,7 @@
         }
 
         function filterItems(statusType, btnElement) {
+            resetIdleTimer();
             document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
             btnElement.classList.add("active");
 
@@ -129,7 +190,6 @@
             }).join("");
         }
 
-        // 頁面載入時自動抓取清單
         loadList();
     </script>
 </body>
