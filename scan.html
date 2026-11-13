@@ -15,7 +15,6 @@
         .mode-btn { flex: 1; padding: 16px 12px; font-size: 16px; font-weight: bold; border: 2px solid #dee2e6; border-radius: 8px; background: white; color: #333; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .mode-btn.active-borrow { background-color: #0056b3; color: white; border-color: #0056b3; }
         .mode-btn.active-return { background-color: #d97706; color: white; border-color: #d97706; }
-        #prompt-hint { padding: 30px 15px; background: white; border-radius: 8px; color: #666; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
         #scanner-section { display: none; }
         #mode-banner { padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 12px; font-size: 15px; }
         #camera-select { margin-bottom: 12px; padding: 10px; font-size: 15px; border-radius: 6px; width: 100%; border: 1px solid #ccc; background: white; }
@@ -31,15 +30,12 @@
             <button class="logout-btn" onclick="logout()">登出</button>
         </div>
 
-        <button class="list-btn" onclick="window.location.href='list.html'">📋 查看目前借出清單</button>
+        <button class="list-btn" onclick="window.location.href='list.html'">查看目前借出清單</button>
 
         <div class="mode-group">
             <button id="btn-borrow" class="mode-btn" onclick="openScanner('borrow')">📤 借用模式</button>
             <button id="btn-return" class="mode-btn" onclick="openScanner('return')">📥 歸還模式</button>
         </div>
-
-        <!-- 尚未選擇模式時的提示區塊 -->
-        <div id="prompt-hint">👆 請先點選上方「借用模式」或「歸還模式」開啟相機掃描</div>
 
         <!-- 點擊模式後才會顯示的掃描區塊 -->
         <div id="scanner-section">
@@ -47,7 +43,7 @@
             <select id="camera-select"></select>
             <div id="reader"></div>
             <div id="result">相機準備中...</div>
-            <button class="close-cam-btn" onclick="closeScanner()">✖ 關閉相機</button>
+            <button class="close-cam-btn" onclick="closeScanner()">關閉相機</button>
         </div>
     </div>
 
@@ -61,7 +57,7 @@
         }
         const currentUser = JSON.parse(userStr);
         const roleLabel = currentUser.role === "teacher" ? "老師" : "學生";
-        document.getElementById("user-info").innerText = `👤 ${currentUser.name} (${roleLabel} / ${currentUser.user_id})`;
+        document.getElementById("user-info").innerText = `${currentUser.name} (${roleLabel} / ${currentUser.user_id})`;
 
         function logout() {
             localStorage.removeItem("eq_user");
@@ -102,7 +98,6 @@
         // 點擊「借用模式」或「歸還模式」時觸發
         function openScanner(mode) {
             updateModeUI(mode);
-            document.getElementById("prompt-hint").style.display = "none";
             document.getElementById("scanner-section").style.display = "block";
 
             if (!camerasLoaded) {
@@ -132,7 +127,7 @@
                     }
                 }).catch(err => {
                     resultDiv.style.color = "red";
-                    resultDiv.innerText = "無法取得相機清單，請確認瀏覽器相機權限（或確認裝置是否有鏡頭）。";
+                    resultDiv.innerText = "無法取得相機清單，請確認瀏覽器相機權限。";
                 });
             } else if (!isScanning) {
                 startCamera(cameraSelect.value);
@@ -164,7 +159,6 @@
                 document.getElementById("btn-borrow").className = "mode-btn";
                 document.getElementById("btn-return").className = "mode-btn";
                 document.getElementById("scanner-section").style.display = "none";
-                document.getElementById("prompt-hint").style.display = "block";
             };
 
             if (isScanning) {
