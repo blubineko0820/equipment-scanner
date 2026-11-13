@@ -27,7 +27,7 @@
     <div class="container">
         <div class="top-bar">
             <span id="user-info">載入中...</span>
-            <button class="logout-btn" onclick="logout()">登出</button>
+            <button class="logout-btn" onclick="logout(false)">登出</button>
         </div>
 
         <button class="list-btn" onclick="window.location.href='list.html'">查看目前借出清單</button>
@@ -45,12 +45,13 @@
             <button class="close-cam-btn" onclick="closeScanner(false)">關閉相機</button>
         </div>
 
-        <!-- 獨立的狀態與結果顯示區（相機關閉後仍可顯示成功訊息） -->
+        <!-- 獨立的狀態與結果顯示區 -->
         <div id="result">相機準備中...</div>
     </div>
 
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycby6LScaklLoa5lIhOucKWLZfY5S_6EPL7SH4wnwQ1HFssyZigvIvkcdBzaJ8UUoH2k-/exec";
+        const IDLE_LIMIT_MS = 60000; // 閒置上限 60 秒
 
         // 檢查登入狀態
         const userStr = localStorage.getItem("eq_user");
@@ -61,11 +62,37 @@
         const roleLabel = currentUser.role === "teacher" ? "老師" : "學生";
         document.getElementById("user-info").innerText = `${currentUser.name} (${roleLabel} / ${currentUser.user_id})`;
 
-        function logout() {
+        function logout(isTimeout) {
             localStorage.removeItem("eq_user");
-            window.location.href = "index.html";
+            localStorage.removeItem("eq_last_active");
+            window.location.href = isTimeout ? "index.html?timeout=1" : "index.html";
         }
 
+        // --- 閒置 60 秒自動登出機制 ---
+        function resetIdleTimer() {
+            localStorage.setItem("eq_last_active", String(Date.now()));
+        }
+
+        // 剛進入頁面先檢查一次是否已經超時
+        const initLastActive = parseInt(localStorage.getItem("eq_last_active") || "0", 10);
+        if (initLastActive && (Date.now() - initLastActive > IDLE_LIMIT_MS)) {
+            logout(true);
+        } else {
+            resetIdleTimer();
+        }
+
+        ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"].forEach(evt => {
+            document.addEventListener(evt, resetIdleTimer, { passive: true });
+        });
+
+        setInterval(() => {
+            const last = parseInt(localStorage.getItem("eq_last_active") || "0", 10);
+            if (Date.now() - last > IDLE_LIMIT_MS) {
+                logout(true);
+            }
+        }, 1000);
+
+        // --- 掃描器邏輯 ---
         let currentMode = null;
         let isProcessing = false;
         let isScanning = false;
@@ -75,7 +102,6 @@
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         const cameraSelect = document.getElementById("camera-select");
 
-        // 更新按鈕與橫幅樣式
         function updateModeUI(mode) {
             currentMode = mode;
             const btnBorrow = document.getElementById("btn-borrow");
@@ -97,8 +123,8 @@
             }
         }
 
-        // 點擊「借用模式」或「歸還模式」時觸發
         function openScanner(mode) {
+            resetIdleTimer();
             const scannerSection = document.getElementById("scanner-section");
             const resultDiv = document.getElementById("result");
             const wasAlreadyOpen = (scannerSection.style.display === "block");
@@ -107,7 +133,6 @@
             updateModeUI(mode);
             isProcessing = false;
 
-            // 若從借用切換到歸還（或從歸還切換到借用），相機先消失 0.1 秒再出現
             if (isSwitchingMode) {
                 scannerSection.style.display = "none";
                 resultDiv.style.display = "none";
@@ -150,7 +175,6 @@
                             cameraSelect.appendChild(option);
                         });
 
-                        // 優先預設選擇後置鏡頭
                         const backCam = devices.find(d => d.label.toLowerCase().includes("back") || d.label.includes("後"));
                         if (backCam) cameraSelect.value = backCam.id;
 
@@ -186,7 +210,6 @@
                 });
         }
 
-        // keepResult 為 true 時，關閉相機但保留下方的成功訊息
         function closeScanner(keepResult) {
             const resetUI = () => {
                 isScanning = false;
@@ -210,6 +233,7 @@
         }
 
         cameraSelect.addEventListener("change", () => {
+            resetIdleTimer();
             if (isScanning) {
                 html5QrCode.stop().then(() => {
                     isScanning = false;
@@ -223,6 +247,7 @@
         function onScanSuccess(decodedText) {
             if (isProcessing || !currentMode) return;
             isProcessing = true;
+            resetIdleTimer();
 
             if (decodedText.includes("text=")) {
                 decodedText = decodedText.split("text=")[1].split("&")[0];
@@ -243,14 +268,13 @@
                     return response.json();
                 })
                 .then(data => {
+                    resetIdleTimer();
                     if (data.status === "success") {
-                        // 借用或歸還成功：顯示成功訊息並關閉相機
                         resultDiv.style.color = "green";
                         resultDiv.innerText = data.message;
                         isProcessing = false;
                         closeScanner(true);
                     } else {
-                        // 掃描或條件錯誤：提示請重新掃描，保持相機開啟
                         resultDiv.style.color = "red";
                         resultDiv.innerText = `${data.message}\n請重新掃描`;
                         setTimeout(() => {
