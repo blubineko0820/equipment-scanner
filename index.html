@@ -6,20 +6,30 @@
     <title>設備管理系統 - 登入</title>
     <style>
         body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
-        .login-card { background: white; padding: 30px 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 380px; }
-        h2 { text-align: center; color: #333; margin-top: 0; margin-bottom: 24px; }
-        .form-group { margin-bottom: 16px; }
+        .login-card { background: white; padding: 28px 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 380px; }
+        h2 { text-align: center; color: #333; margin-top: 0; margin-bottom: 18px; }
+        .tab-group { display: flex; border-bottom: 2px solid #e9ecef; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px; background: none; border: none; font-size: 16px; font-weight: bold; color: #6c757d; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .tab-btn.active { color: #0056b3; border-bottom-color: #0056b3; }
+        .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 14px; }
-        input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        input:focus { border-color: #0056b3; outline: none; }
-        button { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 8px; }
-        button:disabled { background-color: #99bce0; cursor: not-allowed; }
-        #msg { margin-top: 15px; text-align: center; font-size: 14px; font-weight: bold; min-height: 20px; }
+        input, select { width: 100%; padding: 11px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; box-sizing: border-box; background: white; }
+        input:focus, select:focus { border-color: #0056b3; outline: none; }
+        .submit-btn { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 6px; }
+        .submit-btn:disabled { background-color: #99bce0; cursor: not-allowed; }
+        #msg { margin-top: 15px; text-align: center; font-size: 14px; font-weight: bold; min-height: 20px; line-height: 1.4; }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <h2>設備管理系統登入</h2>
+        <h2>設備管理系統</h2>
+
+        <div class="tab-group">
+            <button type="button" id="tab-login" class="tab-btn active" onclick="switchTab('login')">登入帳號</button>
+            <button type="button" id="tab-register" class="tab-btn" onclick="switchTab('register')">建立帳號</button>
+        </div>
+
+        <!-- 登入表單 -->
         <form id="login-form">
             <div class="form-group">
                 <label for="user_id">帳號（教職員編號 / 學號）</label>
@@ -29,19 +39,81 @@
                 <label for="password">密碼</label>
                 <input type="password" id="password" placeholder="請輸入密碼" required autocomplete="current-password">
             </div>
-            <button type="submit" id="login-btn">登入系統</button>
+            <button type="submit" id="login-btn" class="submit-btn">登入系統</button>
         </form>
+
+        <!-- 建立帳號表單 -->
+        <form id="register-form" style="display: none;">
+            <div class="form-group">
+                <label for="reg_role">身分</label>
+                <select id="reg_role" required>
+                    <option value="student">學生</option>
+                    <option value="teacher">老師</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="reg_name">姓名</label>
+                <input type="text" id="reg_name" placeholder="請輸入您的姓名" required>
+            </div>
+            <div class="form-group">
+                <label for="reg_user_id">帳號（教職員編號 / 學號）</label>
+                <input type="text" id="reg_user_id" placeholder="請輸入帳號" required>
+            </div>
+            <div class="form-group">
+                <label for="reg_password">設定密碼</label>
+                <input type="password" id="reg_password" placeholder="請設定登入密碼" required>
+            </div>
+            <button type="submit" id="reg-btn" class="submit-btn">建立帳號</button>
+        </form>
+
         <div id="msg"></div>
     </div>
 
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycby6LScaklLoa5lIhOucKWLZfY5S_6EPL7SH4wnwQ1HFssyZigvIvkcdBzaJ8UUoH2k-/exec";
 
-        // 若已經登入過，直接前往 scan.html
-        if (localStorage.getItem("eq_user")) {
-            window.location.href = "scan.html";
+        // 檢查是否為閒置自動登出跳轉過來
+        if (window.location.search.includes("timeout=1")) {
+            const msg = document.getElementById("msg");
+            msg.style.color = "#d97706";
+            msg.innerText = "閒置超過 60 秒未操作，系統已自動登出。";
+            // 清除網址上的 timeout 參數
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
 
+        // 若已經登入過且未超時，直接前往 scan.html
+        const existingUser = localStorage.getItem("eq_user");
+        const lastActive = parseInt(localStorage.getItem("eq_last_active") || "0", 10);
+        if (existingUser && (Date.now() - lastActive < 60000)) {
+            window.location.href = "scan.html";
+        } else {
+            localStorage.removeItem("eq_user");
+            localStorage.removeItem("eq_last_active");
+        }
+
+        function switchTab(tab) {
+            const loginForm = document.getElementById("login-form");
+            const regForm = document.getElementById("register-form");
+            const tabLogin = document.getElementById("tab-login");
+            const tabReg = document.getElementById("tab-register");
+            const msg = document.getElementById("msg");
+
+            msg.innerText = "";
+
+            if (tab === "login") {
+                loginForm.style.display = "block";
+                regForm.style.display = "none";
+                tabLogin.className = "tab-btn active";
+                tabReg.className = "tab-btn";
+            } else {
+                loginForm.style.display = "none";
+                regForm.style.display = "block";
+                tabLogin.className = "tab-btn";
+                tabReg.className = "tab-btn active";
+            }
+        }
+
+        // 處理登入
         document.getElementById("login-form").addEventListener("submit", function(e) {
             e.preventDefault();
             const userId = document.getElementById("user_id").value.trim();
@@ -61,11 +133,12 @@
                 .then(data => {
                     if (data.status === "success") {
                         localStorage.setItem("eq_user", JSON.stringify(data.user));
+                        localStorage.setItem("eq_last_active", String(Date.now()));
                         msg.style.color = "green";
                         msg.innerText = `歡迎，${data.user.name}！正在進入掃描器...`;
                         setTimeout(() => {
                             window.location.href = "scan.html";
-                        }, 600);
+                        }, 500);
                     } else {
                         msg.style.color = "red";
                         msg.innerText = data.message;
@@ -78,6 +151,48 @@
                     msg.innerText = "連線失敗，請檢查網路或 GAS 部署狀態。";
                     btn.disabled = false;
                     btn.innerText = "登入系統";
+                });
+        });
+
+        // 處理建立帳號
+        document.getElementById("register-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const role = document.getElementById("reg_role").value;
+            const name = document.getElementById("reg_name").value.trim();
+            const userId = document.getElementById("reg_user_id").value.trim();
+            const password = document.getElementById("reg_password").value.trim();
+            const btn = document.getElementById("reg-btn");
+            const msg = document.getElementById("msg");
+
+            btn.disabled = true;
+            btn.innerText = "建立中...";
+            msg.style.color = "#0056b3";
+            msg.innerText = "正在同步資料至系統...";
+
+            const url = `${API_URL}?action=register&user_id=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}&password=${encodeURIComponent(password)}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerText = "建立帳號";
+
+                    if (data.status === "success") {
+                        document.getElementById("register-form").reset();
+                        switchTab("login");
+                        document.getElementById("user_id").value = userId;
+                        msg.style.color = "green";
+                        msg.innerText = data.message;
+                    } else {
+                        msg.style.color = "red";
+                        msg.innerText = data.message;
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerText = "建立帳號";
+                    msg.style.color = "red";
+                    msg.innerText = "建立失敗，請檢查網路或 GAS 部署狀態。";
                 });
         });
     </script>
