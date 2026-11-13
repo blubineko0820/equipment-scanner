@@ -11,14 +11,17 @@
         .top-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; font-size: 14px; }
         .logout-btn { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; }
         .list-btn { width: 100%; padding: 12px; background-color: #343a40; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
-        .mode-group { display: flex; gap: 10px; margin-bottom: 12px; }
-        .mode-btn { flex: 1; padding: 14px; font-size: 16px; font-weight: bold; border: 2px solid #dee2e6; border-radius: 8px; background: white; color: #555; cursor: pointer; transition: all 0.2s; }
+        .mode-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .mode-btn { flex: 1; padding: 16px 12px; font-size: 16px; font-weight: bold; border: 2px solid #dee2e6; border-radius: 8px; background: white; color: #333; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .mode-btn.active-borrow { background-color: #0056b3; color: white; border-color: #0056b3; }
         .mode-btn.active-return { background-color: #d97706; color: white; border-color: #d97706; }
-        #mode-banner { padding: 8px; border-radius: 6px; font-weight: bold; margin-bottom: 12px; font-size: 15px; background-color: #e7f1ff; color: #0056b3; }
-        #camera-select { margin-bottom: 12px; padding: 10px; font-size: 15px; border-radius: 6px; width: 100%; border: 1px solid #ccc; }
+        #prompt-hint { padding: 30px 15px; background: white; border-radius: 8px; color: #666; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        #scanner-section { display: none; }
+        #mode-banner { padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 12px; font-size: 15px; }
+        #camera-select { margin-bottom: 12px; padding: 10px; font-size: 15px; border-radius: 6px; width: 100%; border: 1px solid #ccc; background: white; }
         #reader { width: 100%; margin: 0 auto; background: black; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        #result { margin-top: 18px; padding: 12px; background: white; border-radius: 8px; font-size: 17px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 60px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        #result { margin-top: 15px; padding: 12px; background: white; border-radius: 8px; font-size: 17px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 55px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .close-cam-btn { margin-top: 15px; width: 100%; padding: 10px; background-color: #e9ecef; color: #495057; border: 1px solid #ced4da; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -31,15 +34,21 @@
         <button class="list-btn" onclick="window.location.href='list.html'">📋 查看目前借出清單</button>
 
         <div class="mode-group">
-            <button id="btn-borrow" class="mode-btn active-borrow" onclick="setMode('borrow')">📤 借用模式</button>
-            <button id="btn-return" class="mode-btn" onclick="setMode('return')">📥 歸還模式</button>
+            <button id="btn-borrow" class="mode-btn" onclick="openScanner('borrow')">📤 借用模式</button>
+            <button id="btn-return" class="mode-btn" onclick="openScanner('return')">📥 歸還模式</button>
         </div>
 
-        <div id="mode-banner">目前動作：掃描後將「借出」設備</div>
+        <!-- 尚未選擇模式時的提示區塊 -->
+        <div id="prompt-hint">👆 請先點選上方「借用模式」或「歸還模式」開啟相機掃描</div>
 
-        <select id="camera-select"></select>
-        <div id="reader"></div>
-        <div id="result">相機啟動中，請稍候...</div>
+        <!-- 點擊模式後才會顯示的掃描區塊 -->
+        <div id="scanner-section">
+            <div id="mode-banner"></div>
+            <select id="camera-select"></select>
+            <div id="reader"></div>
+            <div id="result">相機準備中...</div>
+            <button class="close-cam-btn" onclick="closeScanner()">✖ 關閉相機</button>
+        </div>
     </div>
 
     <script>
@@ -59,9 +68,17 @@
             window.location.href = "index.html";
         }
 
-        // 模式切換控制
-        let currentMode = "borrow";
-        function setMode(mode) {
+        let currentMode = null;
+        let isProcessing = false;
+        let isScanning = false;
+        let camerasLoaded = false;
+
+        const html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        const cameraSelect = document.getElementById("camera-select");
+
+        // 更新按鈕與橫幅樣式
+        function updateModeUI(mode) {
             currentMode = mode;
             const btnBorrow = document.getElementById("btn-borrow");
             const btnReturn = document.getElementById("btn-return");
@@ -82,13 +99,97 @@
             }
         }
 
-        let isProcessing = false;
-        const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        const cameraSelect = document.getElementById("camera-select");
+        // 點擊「借用模式」或「歸還模式」時觸發
+        function openScanner(mode) {
+            updateModeUI(mode);
+            document.getElementById("prompt-hint").style.display = "none";
+            document.getElementById("scanner-section").style.display = "block";
+
+            if (!camerasLoaded) {
+                const resultDiv = document.getElementById("result");
+                resultDiv.style.color = "#333";
+                resultDiv.innerText = "正在請求相機權限...";
+
+                Html5Qrcode.getCameras().then(devices => {
+                    if (devices && devices.length) {
+                        camerasLoaded = true;
+                        cameraSelect.innerHTML = "";
+                        devices.forEach((device, index) => {
+                            const option = document.createElement("option");
+                            option.value = device.id;
+                            option.text = device.label || `相機 ${index + 1}`;
+                            cameraSelect.appendChild(option);
+                        });
+
+                        // 優先預設選擇後置鏡頭
+                        const backCam = devices.find(d => d.label.toLowerCase().includes("back") || d.label.includes("後"));
+                        if (backCam) cameraSelect.value = backCam.id;
+
+                        startCamera(cameraSelect.value);
+                    } else {
+                        resultDiv.style.color = "red";
+                        resultDiv.innerText = "偵測不到可用的相機裝置。";
+                    }
+                }).catch(err => {
+                    resultDiv.style.color = "red";
+                    resultDiv.innerText = "無法取得相機清單，請確認瀏覽器相機權限（或確認裝置是否有鏡頭）。";
+                });
+            } else if (!isScanning) {
+                startCamera(cameraSelect.value);
+            }
+        }
+
+        function startCamera(cameraId) {
+            if (isScanning) return;
+            html5QrCode.start(cameraId, config, onScanSuccess)
+                .then(() => {
+                    isScanning = true;
+                    const resultDiv = document.getElementById("result");
+                    resultDiv.style.color = "#333";
+                    resultDiv.innerText = "請對準 QR Code 進行掃描...";
+                })
+                .catch(err => {
+                    isScanning = false;
+                    const resultDiv = document.getElementById("result");
+                    resultDiv.style.color = "red";
+                    resultDiv.innerText = "相機啟動失敗，請確認瀏覽器相機權限。";
+                    console.error(err);
+                });
+        }
+
+        function closeScanner() {
+            const resetUI = () => {
+                isScanning = false;
+                currentMode = null;
+                document.getElementById("btn-borrow").className = "mode-btn";
+                document.getElementById("btn-return").className = "mode-btn";
+                document.getElementById("scanner-section").style.display = "none";
+                document.getElementById("prompt-hint").style.display = "block";
+            };
+
+            if (isScanning) {
+                html5QrCode.stop().then(resetUI).catch(err => {
+                    console.error("停止鏡頭失敗", err);
+                    resetUI();
+                });
+            } else {
+                resetUI();
+            }
+        }
+
+        cameraSelect.addEventListener("change", () => {
+            if (isScanning) {
+                html5QrCode.stop().then(() => {
+                    isScanning = false;
+                    startCamera(cameraSelect.value);
+                }).catch(err => console.error("停止鏡頭失敗", err));
+            } else {
+                startCamera(cameraSelect.value);
+            }
+        });
 
         function onScanSuccess(decodedText) {
-            if (isProcessing) return;
+            if (isProcessing || !currentMode) return;
             isProcessing = true;
 
             if (decodedText.includes("text=")) {
@@ -113,8 +214,10 @@
                     resultDiv.innerText = data.message;
                     setTimeout(() => {
                         isProcessing = false;
-                        resultDiv.style.color = "#333";
-                        resultDiv.innerText = "請對準下一個 QR Code 進行掃描...";
+                        if (isScanning) {
+                            resultDiv.style.color = "#333";
+                            resultDiv.innerText = "請對準下一個 QR Code 進行掃描...";
+                        }
                     }, 3500);
                 })
                 .catch(error => {
@@ -123,37 +226,6 @@
                     setTimeout(() => { isProcessing = false; }, 5000);
                 });
         }
-
-        function startCamera(cameraId) {
-            html5QrCode.start(cameraId, config, onScanSuccess)
-                .then(() => { document.getElementById("result").innerText = "請對準 QR Code 進行掃描..."; })
-                .catch(err => { console.error(err); });
-        }
-
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length) {
-                devices.forEach((device, index) => {
-                    const option = document.createElement("option");
-                    option.value = device.id;
-                    option.text = device.label || `相機 ${index + 1}`;
-                    cameraSelect.appendChild(option);
-                });
-
-                // 優先預設選擇後置鏡頭（若有）
-                const backCam = devices.find(d => d.label.toLowerCase().includes("back") || d.label.includes("後"));
-                if (backCam) cameraSelect.value = backCam.id;
-
-                startCamera(cameraSelect.value);
-
-                cameraSelect.addEventListener("change", () => {
-                    html5QrCode.stop().then(() => {
-                        startCamera(cameraSelect.value);
-                    }).catch(err => console.error("停止鏡頭失敗", err));
-                });
-            }
-        }).catch(err => {
-            document.getElementById("result").innerText = "無法取得相機清單，請確認瀏覽器相機權限。";
-        });
     </script>
 </body>
 </html>
