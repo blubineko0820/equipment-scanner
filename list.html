@@ -11,11 +11,17 @@
         .back-btn { padding: 10px 16px; background-color: #0056b3; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
         .refresh-btn { padding: 10px 14px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
         h2 { margin: 0 0 12px 0; color: #333; font-size: 20px; }
-        .summary-box { display: none; background: white; padding: 14px 16px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 14px; font-size: 16px; font-weight: bold; text-align: center; }
-        .stat-borrowed { color: #198754; }
-        .stat-available { color: #dc3545; }
+        
+        /* 老師專用三格獨立統計區塊 */
+        .summary-grid { display: none; gap: 10px; margin-bottom: 15px; }
+        .stat-card { flex: 1; background: white; padding: 14px 8px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center; }
+        .stat-label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; }
+        .stat-num { display: block; font-size: 28px; font-weight: bold; line-height: 1.1; }
+        
+        .stat-available { color: #198754; }
+        .stat-borrowed { color: #dc3545; }
         .stat-total { color: #0056b3; }
-        .stat-sep { color: #adb5bd; margin: 0 8px; }
+
         .filter-group { display: none; gap: 8px; margin-bottom: 15px; }
         .filter-btn { padding: 8px 14px; border: 1px solid #ccc; background: white; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .filter-btn.active { background-color: #343a40; color: white; border-color: #343a40; }
@@ -39,13 +45,20 @@
 
         <h2 id="page-title">設備清單載入中...</h2>
 
-        <!-- 老師專用的數量統計列（借出中：綠 / 可借用：紅 / 所有設備：藍） -->
-        <div id="teacher-summary" class="summary-box">
-            <span class="stat-borrowed">借出中：<span id="count-borrowed">0</span></span>
-            <span class="stat-sep">/</span>
-            <span class="stat-available">可借用：<span id="count-available">0</span></span>
-            <span class="stat-sep">/</span>
-            <span class="stat-total">所有設備：<span id="count-total">0</span></span>
+        <!-- 老師專用的數量統計區塊（可借用：綠 / 借出中：紅 / 所有設備：藍） -->
+        <div id="teacher-summary" class="summary-grid">
+            <div class="stat-card stat-available">
+                <span class="stat-label">可借用</span>
+                <span class="stat-num" id="count-available">0</span>
+            </div>
+            <div class="stat-card stat-borrowed">
+                <span class="stat-label">借出中</span>
+                <span class="stat-num" id="count-borrowed">0</span>
+            </div>
+            <div class="stat-card stat-total">
+                <span class="stat-label">所有設備</span>
+                <span class="stat-num" id="count-total">0</span>
+            </div>
         </div>
 
         <!-- 老師專用的狀態篩選列 -->
@@ -101,7 +114,7 @@
         // --- 權限介面初始化 ---
         if (currentUser.role === "teacher") {
             document.getElementById("page-title").innerText = "所有設備狀態總覽（老師權限）";
-            document.getElementById("teacher-summary").style.display = "block";
+            document.getElementById("teacher-summary").style.display = "flex";
             document.getElementById("teacher-filters").style.display = "flex";
         } else {
             document.getElementById("page-title").innerText = `${currentUser.name} 目前借用的設備`;
@@ -109,12 +122,12 @@
 
         function updateTeacherSummary(items) {
             if (currentUser.role !== "teacher") return;
-            const borrowedCount = items.filter(item => item.status === "借出中").length;
             const availableCount = items.filter(item => item.status === "可借用").length;
+            const borrowedCount = items.filter(item => item.status === "借出中").length;
             const totalCount = items.length;
 
-            document.getElementById("count-borrowed").innerText = borrowedCount;
             document.getElementById("count-available").innerText = availableCount;
+            document.getElementById("count-borrowed").innerText = borrowedCount;
             document.getElementById("count-total").innerText = totalCount;
         }
 
