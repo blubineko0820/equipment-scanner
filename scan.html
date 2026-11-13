@@ -12,14 +12,14 @@
         .logout-btn { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; }
         .list-btn { width: 100%; padding: 12px; background-color: #343a40; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
         .mode-group { display: flex; gap: 10px; margin-bottom: 15px; }
-        .mode-btn { flex: 1; padding: 16px 12px; font-size: 16px; font-weight: bold; border: 2px solid #dee2e6; border-radius: 8px; background: white; color: #333; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .mode-btn { flex: 1; padding: 16px 12px; font-size: 16px; font-weight: bold; border: 2px solid #dee2e6; border-radius: 8px; background: white; color: #333; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .mode-btn.active-borrow { background-color: #0056b3; color: white; border-color: #0056b3; }
         .mode-btn.active-return { background-color: #d97706; color: white; border-color: #d97706; }
         #scanner-section { display: none; }
         #mode-banner { padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 12px; font-size: 15px; }
         #camera-select { margin-bottom: 12px; padding: 10px; font-size: 15px; border-radius: 6px; width: 100%; border: 1px solid #ccc; background: white; }
         #reader { width: 100%; margin: 0 auto; background: black; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        #result { margin-top: 15px; padding: 12px; background: white; border-radius: 8px; font-size: 17px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 55px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        #result { display: none; margin-top: 15px; padding: 14px; background: white; border-radius: 8px; font-size: 17px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
         .close-cam-btn { margin-top: 15px; width: 100%; padding: 10px; background-color: #e9ecef; color: #495057; border: 1px solid #ced4da; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -42,9 +42,11 @@
             <div id="mode-banner"></div>
             <select id="camera-select"></select>
             <div id="reader"></div>
-            <div id="result">相機準備中...</div>
-            <button class="close-cam-btn" onclick="closeScanner()">關閉相機</button>
+            <button class="close-cam-btn" onclick="closeScanner(false)">關閉相機</button>
         </div>
+
+        <!-- 獨立的狀態與結果顯示區（相機關閉後仍可顯示成功訊息） -->
+        <div id="result">相機準備中...</div>
     </div>
 
     <script>
@@ -97,11 +99,43 @@
 
         // 點擊「借用模式」或「歸還模式」時觸發
         function openScanner(mode) {
+            const scannerSection = document.getElementById("scanner-section");
+            const resultDiv = document.getElementById("result");
+            const wasAlreadyOpen = (scannerSection.style.display === "block");
+            const isSwitchingMode = (wasAlreadyOpen && currentMode !== mode);
+
             updateModeUI(mode);
-            document.getElementById("scanner-section").style.display = "block";
+            isProcessing = false;
+
+            // 若從借用切換到歸還（或從歸還切換到借用），相機先消失 0.1 秒再出現
+            if (isSwitchingMode) {
+                scannerSection.style.display = "none";
+                resultDiv.style.display = "none";
+
+                setTimeout(() => {
+                    scannerSection.style.display = "block";
+                    resultDiv.style.display = "block";
+                    resultDiv.style.color = "#333";
+                    resultDiv.innerText = isScanning ? "請對準 QR Code 進行掃描..." : "相機準備中...";
+                    if (!isScanning) {
+                        initOrStartCamera();
+                    }
+                }, 100);
+            } else {
+                scannerSection.style.display = "block";
+                resultDiv.style.display = "block";
+                resultDiv.style.color = "#333";
+                resultDiv.innerText = isScanning ? "請對準 QR Code 進行掃描..." : "相機準備中...";
+                if (!isScanning) {
+                    initOrStartCamera();
+                }
+            }
+        }
+
+        function initOrStartCamera() {
+            const resultDiv = document.getElementById("result");
 
             if (!camerasLoaded) {
-                const resultDiv = document.getElementById("result");
                 resultDiv.style.color = "#333";
                 resultDiv.innerText = "正在請求相機權限...";
 
@@ -152,13 +186,17 @@
                 });
         }
 
-        function closeScanner() {
+        // keepResult 為 true 時，關閉相機但保留下方的成功訊息
+        function closeScanner(keepResult) {
             const resetUI = () => {
                 isScanning = false;
                 currentMode = null;
                 document.getElementById("btn-borrow").className = "mode-btn";
                 document.getElementById("btn-return").className = "mode-btn";
                 document.getElementById("scanner-section").style.display = "none";
+                if (!keepResult) {
+                    document.getElementById("result").style.display = "none";
+                }
             };
 
             if (isScanning) {
@@ -193,6 +231,7 @@
             const actionText = currentMode === "borrow" ? "借用" : "歸還";
 
             const resultDiv = document.getElementById("result");
+            resultDiv.style.display = "block";
             resultDiv.style.color = "#0056b3";
             resultDiv.innerText = `讀取到編號：${eqId}\n正在處理「${actionText}」請求...`;
 
@@ -204,20 +243,35 @@
                     return response.json();
                 })
                 .then(data => {
-                    resultDiv.style.color = data.status === "success" ? "green" : "red";
-                    resultDiv.innerText = data.message;
+                    if (data.status === "success") {
+                        // 借用或歸還成功：顯示成功訊息並關閉相機
+                        resultDiv.style.color = "green";
+                        resultDiv.innerText = data.message;
+                        isProcessing = false;
+                        closeScanner(true);
+                    } else {
+                        // 掃描或條件錯誤：提示請重新掃描，保持相機開啟
+                        resultDiv.style.color = "red";
+                        resultDiv.innerText = `${data.message}\n請重新掃描`;
+                        setTimeout(() => {
+                            isProcessing = false;
+                            if (isScanning) {
+                                resultDiv.style.color = "#333";
+                                resultDiv.innerText = "請重新掃描 QR Code...";
+                            }
+                        }, 3000);
+                    }
+                })
+                .catch(error => {
+                    resultDiv.style.color = "red";
+                    resultDiv.innerText = `系統連線錯誤！請重新掃描\n詳細資料：${error.message || error}`;
                     setTimeout(() => {
                         isProcessing = false;
                         if (isScanning) {
                             resultDiv.style.color = "#333";
-                            resultDiv.innerText = "請對準下一個 QR Code 進行掃描...";
+                            resultDiv.innerText = "請重新掃描 QR Code...";
                         }
                     }, 3500);
-                })
-                .catch(error => {
-                    resultDiv.style.color = "red";
-                    resultDiv.innerText = `系統連線錯誤！\n詳細資料：${error.message || error}`;
-                    setTimeout(() => { isProcessing = false; }, 5000);
                 });
         }
     </script>
