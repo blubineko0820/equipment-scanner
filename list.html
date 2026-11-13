@@ -28,8 +28,8 @@
 <body>
     <div class="container">
         <div class="header-bar">
-            <button class="back-btn" onclick="window.location.href='scan.html'">📷 返回掃描器</button>
-            <button class="refresh-btn" onclick="loadList()">🔄 重新整理</button>
+            <button class="back-btn" onclick="window.location.href='scan.html'">返回掃描器</button>
+            <button class="refresh-btn" onclick="loadList()">重新整理</button>
         </div>
 
         <h2 id="page-title">設備清單載入中...</h2>
@@ -55,10 +55,10 @@
         let allItems = [];
 
         if (currentUser.role === "teacher") {
-            document.getElementById("page-title").innerText = "📊 所有設備狀態總覽（老師權限）";
+            document.getElementById("page-title").innerText = "所有設備狀態總覽（老師權限）";
             document.getElementById("teacher-filters").style.display = "flex";
         } else {
-            document.getElementById("page-title").innerText = `📋 ${currentUser.name} 目前借用的設備`;
+            document.getElementById("page-title").innerText = `${currentUser.name} 目前借用的設備`;
         }
 
         function loadList() {
