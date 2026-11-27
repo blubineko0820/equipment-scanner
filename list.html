@@ -47,7 +47,7 @@
             <button class="refresh-btn" onclick="loadList()">重新整理</button>
         </div>
 
-        <!-- 上半部：目前借用 / 設備狀態總覽 -->
+        <!-- 第一區：老師看所有設備狀態總覽；學生看自己目前借用的設備 -->
         <h2 id="current-title">資料載入中...</h2>
 
         <!-- 老師專用的數量統計區塊（可借用：綠 / 借出中：紅 / 所有設備：藍） -->
@@ -75,7 +75,13 @@
 
         <div id="current-list-container"></div>
 
-        <!-- 下半部：個人已歸還紀錄（老師與學生皆只顯示自己的） -->
+        <!-- 第二區（僅老師顯示）：老師自己目前借用的設備 -->
+        <div id="teacher-my-borrowed-section" class="section-divider" style="display: none;">
+            <h2 id="teacher-my-borrowed-title">目前借用的設備</h2>
+            <div id="teacher-my-borrowed-container"></div>
+        </div>
+
+        <!-- 第三區：個人已歸還紀錄（老師與學生皆只顯示自己的） -->
         <div class="section-divider">
             <h2 id="returned-title">已歸還紀錄</h2>
             <div id="returned-list-container"></div>
@@ -83,7 +89,7 @@
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbwld9ZFCvrhPCx3sk1Jfl0h_j0g11USfSoXU0FH5oCHgn9ozAlKvbkj3UCc4ZDL-Zuj/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycby6LScaklLoa5lIhOucKWLZfY5S_6EPL7SH4wnwQ1HFssyZigvIvkcdBzaJ8UUoH2k-/exec";
         const IDLE_LIMIT_MS = 60000; // 閒置上限 60 秒
 
         const userStr = localStorage.getItem("eq_user");
@@ -127,6 +133,8 @@
             document.getElementById("current-title").innerText = "所有設備狀態總覽（老師權限）";
             document.getElementById("teacher-summary").style.display = "flex";
             document.getElementById("teacher-filters").style.display = "flex";
+            document.getElementById("teacher-my-borrowed-section").style.display = "block";
+            document.getElementById("teacher-my-borrowed-title").innerText = `${currentUser.name} 目前借用的設備`;
         } else {
             document.getElementById("current-title").innerText = `${currentUser.name} 目前借用的設備`;
         }
@@ -146,8 +154,13 @@
         function loadList() {
             resetIdleTimer();
             const currentContainer = document.getElementById("current-list-container");
+            const teacherMyContainer = document.getElementById("teacher-my-borrowed-container");
             const returnedContainer = document.getElementById("returned-list-container");
+
             currentContainer.innerHTML = `<div class="empty-msg">資料讀取中，請稍候...</div>`;
+            if (currentUser.role === "teacher") {
+                teacherMyContainer.innerHTML = `<div class="empty-msg">資料讀取中，請稍候...</div>`;
+            }
             returnedContainer.innerHTML = `<div class="empty-msg">資料讀取中，請稍候...</div>`;
 
             const url = `${API_URL}?action=list&user_id=${encodeURIComponent(currentUser.user_id)}&role=${encodeURIComponent(currentUser.role)}`;
@@ -160,14 +173,25 @@
                         allCurrentItems = data.current_items || [];
                         updateTeacherSummary(allCurrentItems);
                         renderCurrentItems(allCurrentItems);
+
+                        // 若為老師，另外篩選出「老師自己目前借用中」的設備
+                        if (currentUser.role === "teacher") {
+                            const myBorrowed = allCurrentItems.filter(
+                                item => item.status === "借出中" && String(item.borrower_id).trim() === String(currentUser.user_id).trim()
+                            );
+                            renderTeacherMyBorrowed(myBorrowed);
+                        }
+
                         renderReturnedItems(data.returned_items || []);
                     } else {
                         currentContainer.innerHTML = `<div class="empty-msg" style="color:red;">讀取失敗：${data.message}</div>`;
+                        teacherMyContainer.innerHTML = "";
                         returnedContainer.innerHTML = "";
                     }
                 })
                 .catch(err => {
                     currentContainer.innerHTML = `<div class="empty-msg" style="color:red;">連線錯誤，請稍後再試。</div>`;
+                    teacherMyContainer.innerHTML = "";
                     returnedContainer.innerHTML = "";
                 });
         }
@@ -214,6 +238,28 @@
                         </div>
                         <div class="card-detail">
                             ${borrowInfo}
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderTeacherMyBorrowed(items) {
+            const container = document.getElementById("teacher-my-borrowed-container");
+            if (!items || items.length === 0) {
+                container.innerHTML = `<div class="empty-msg">您目前沒有借用任何設備。</div>`;
+                return;
+            }
+
+            container.innerHTML = items.map(item => {
+                return `
+                    <div class="card borrowed">
+                        <div class="card-top">
+                            <span class="eq-title">[${item.equipment_id}] ${item.brand} ${item.name}</span>
+                            <span class="badge badge-out">借出中</span>
+                        </div>
+                        <div class="card-detail">
+                            <div><strong>借出時間：</strong>${item.borrow_time}</div>
                         </div>
                     </div>
                 `;
