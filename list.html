@@ -97,7 +97,7 @@
             window.location.href = "index.html";
         }
         const currentUser = JSON.parse(userStr);
-        let allCurrentItems = [];
+        let allItems = [];
 
         function logout(isTimeout) {
             localStorage.removeItem("eq_user");
@@ -170,14 +170,13 @@
                 .then(data => {
                     resetIdleTimer();
                     if (data.status === "success") {
-                        // 相容新版 data.current_items 與舊版 data.items
-                        allCurrentItems = data.current_items || data.items || [];
-                        updateTeacherSummary(allCurrentItems);
-                        renderCurrentItems(allCurrentItems);
+                        allItems = data.items || [];
+                        updateTeacherSummary(allItems);
+                        renderCurrentItems(allItems);
 
                         // 若為老師，另外篩選出「老師自己目前借用中」的設備
                         if (currentUser.role === "teacher") {
-                            const myBorrowed = allCurrentItems.filter(
+                            const myBorrowed = allItems.filter(
                                 item => item.status === "借出中" && String(item.borrower_id).trim() === String(currentUser.user_id).trim()
                             );
                             renderTeacherMyBorrowed(myBorrowed);
@@ -203,9 +202,9 @@
             btnElement.classList.add("active");
 
             if (statusType === "all") {
-                renderCurrentItems(allCurrentItems);
+                renderCurrentItems(allItems);
             } else {
-                const filtered = allCurrentItems.filter(item => item.status === statusType);
+                const filtered = allItems.filter(item => item.status === statusType);
                 renderCurrentItems(filtered);
             }
         }
