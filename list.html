@@ -170,7 +170,8 @@
                 .then(data => {
                     resetIdleTimer();
                     if (data.status === "success") {
-                        allCurrentItems = data.current_items || [];
+                        // 相容新版 data.current_items 與舊版 data.items
+                        allCurrentItems = data.current_items || data.items || [];
                         updateTeacherSummary(allCurrentItems);
                         renderCurrentItems(allCurrentItems);
 
